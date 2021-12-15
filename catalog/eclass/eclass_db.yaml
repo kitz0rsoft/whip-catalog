@@ -6,6 +6,7 @@ hooks:
       Fix links of /usr/include/db.h and .so
     keywords:
       - db_fix
+      - eclass_db
     actions:
       - |-
         LIB="${EROOT}/usr/lib64"
