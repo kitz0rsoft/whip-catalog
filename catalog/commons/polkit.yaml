@@ -1,0 +1,21 @@
+hooks:
+  polkit_setup:
+    remediate: polkit_setup
+    check: polkit
+    description: |
+      Setup env for polkitd.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        polkit_setup() {
+          if [ ! -e /var/lib/polkit-1 ] ; then
+            mkdir -p /var/lib/polkit-1
+          fi
+
+          chmod 0700 "${EROOT}"/{etc,usr/share}/polkit-1/rules.d
+          chown -R polkitd:root "${EROOT}"/{etc,usr/share}/polkit-1/rules.d
+          chown -R polkitd:polkitd "${EROOT}"/var/lib/polkit-1
+        }
+
+        polkit_setup

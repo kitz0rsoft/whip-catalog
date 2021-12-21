@@ -1,0 +1,80 @@
+hooks:
+  create_scale:
+    remediate: fonts_setup
+    check: fonts
+    description: |-
+      Create fonts.scale file, used by the old server-side fonts subsystem.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        if [ -z "${FONT_DIR}" ] ; then
+          echo "Missing FONT_DIR variable."
+          exit 1
+        fi
+
+        create_fonts_scale() {
+          if [[ ${FONT_DIR} != Speedo && ${FONT_DIR} != CID ]]; then
+            echo "Generating fonts.scale for ${FONT_DIR}"
+            mkfontscale \
+              -a "${EROOT}/usr/share/fonts/encodings/encodings.dir" \
+              -- "${EROOT}/usr/share/fonts/${FONT_DIR}"
+          fi
+        }
+
+        create_fonts_scale
+
+  create_fonts_dir:
+    remediate: fonts_dir
+    check: fonts
+    description: |
+      Create fonts.dir file, used by the old server-side fonts subsystem.
+    actions:
+      - |
+        EROOT=${EROOT:-/}
+
+        if [ -z "${FONT_DIR}" ] ; then
+          echo "Missing FONT_DIR variable."
+          exit 1
+        fi
+
+        create_fonts_dir() {
+          echo "Generating fonts.dir for ${FONT_DIR}"
+          mkfontdir \
+            -e "${EROOT}"/usr/share/fonts/encodings \
+            -e "${EROOT}"/usr/share/fonts/encodings/large \
+            -- "${EROOT}/usr/share/fonts/${FONT_DIR}"
+        }
+
+        create_fonts_dir
+
+  setup_all_fonts:
+    remediate: setup_fonts
+    check: fonts
+    description: |
+      Setup fonts.
+    actions:
+      - |
+        EROOT=${EROOT:-/}
+
+        setup_all_fonts() {
+          local i=""
+
+          for i in $(ls ${EROOT}/usr/share/fonts/) ; do
+            if [ $i != "encoding" ] ; then
+              export FONT_DIR=$i
+              whip hook fonts.create_scale || {
+                ewarn "Error on create fonts scale for font ${FONT_DIR}"
+              }
+              whip hook fonts.create_fonts_dir || {
+                ewarn "Error on create fonts.dir file for font ${FONT_DIR}"
+              }
+            fi
+          done
+        }
+
+        setup_all_fonts
+
+entrypoint:
+  - /bin/bash
+  - -c

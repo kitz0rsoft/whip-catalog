@@ -1,0 +1,39 @@
+hooks:
+
+  gtk_update_icons:
+    remediate: gtk_icon_cache
+    check: gtk
+    description: |-
+      Update Gnome icons cache.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        # Fix gnome icons caches
+        rm -f ${EROOT}usr/share/icons/hicolor/icon-theme.cache
+        gtk-update-icon-cache -f ${EROOT}usr/share/icons/*
+
+  glib_update_schemes:
+    remediate: glib_update_schemes
+    check: glib
+    description: |-
+      Update Glib Schemas.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+        glib-compile-schemas ${EROOT}usr/share/glib-2.0/schemas
+
+  mime_update_db:
+    remediate: mime_update_db
+    check: mime_cache
+    description: |-
+      Update mime cache.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+        update-mime-database ${EROOT}usr/share/mime
+        gdk-pixbuf-query-loaders --update-cache
+
+entrypoint:
+  - /bin/bash
+  - -c
