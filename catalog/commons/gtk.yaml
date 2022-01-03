@@ -13,8 +13,8 @@ hooks:
         rm -f ${EROOT}usr/share/icons/hicolor/icon-theme.cache
         gtk-update-icon-cache -f ${EROOT}usr/share/icons/*
 
-  glib_update_schemes:
-    remediate: glib_update_schemes
+  glib_update_schemas:
+    remediate: glib_update_schemas
     check: glib
     description: |-
       Update Glib Schemas.
