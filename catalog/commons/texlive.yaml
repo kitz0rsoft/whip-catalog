@@ -1,0 +1,21 @@
+hooks:
+  texlive_postinst:
+    remediate: texlive_setup
+    check: textlive
+    description: |
+      Setup texlive files.
+    actions:
+      - |-
+        /usr/sbin/texmf-update
+
+  texlive_rebuild_fmt:
+    remediate: texlive_rebuild_fmt
+    check: textlive
+    description: |
+      Rebuild TeX formats.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        ${EROOT}usr/bin/fmtutil-sys --all
+
