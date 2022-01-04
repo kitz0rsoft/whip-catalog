@@ -57,6 +57,8 @@ hooks:
       - |
         EROOT=${EROOT:-/}
 
+        source /lib/gentoo/functions.sh
+
         setup_all_fonts() {
           local i=""
 
