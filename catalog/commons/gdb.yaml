@@ -1,0 +1,16 @@
+hooks:
+
+  setup:
+    remediate: gdm_config
+    check: gdm
+    description: |-
+      Setup gdm files.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        chown gdm:gdm -R /var/lib/gdm/
+
+entrypoint:
+  - /bin/bash
+  - -c
