@@ -1,0 +1,20 @@
+hooks:
+  net-setup:
+    check: net
+    remediate: net_setup
+    description: |
+      Configure net.eth0 with DHCP (for corenetwork package)
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        if [ -e "${EROOT}"etc/init.d/net.eth0 ] ; then
+           cd "${EROOT}"etc/init.d
+           ln -s netif.templ net.eth0
+           rc-update add net.eth0 default
+           echo "template=dhcpcd" > "${EROOT}"etc/conf.d/net.eth0
+        fi
+
+entrypoint:
+  - /bin/bash
+  - -c
