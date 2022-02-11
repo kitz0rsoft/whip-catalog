@@ -59,6 +59,8 @@ hooks:
 
       See https://askubuntu.com/questions/1073122/is-it-possible-to-convert-postcript-font-to-otf-ttf.
 
+      After this hook you need to execute again `setup_al_fonts`
+
     actions:
       - |
         EROOT=${EROOT:-/}
