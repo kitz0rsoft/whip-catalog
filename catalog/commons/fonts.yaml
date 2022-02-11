@@ -48,6 +48,31 @@ hooks:
 
         create_fonts_dir
 
+
+  convert_pfb:
+    remediate: setup_fonts
+    check: fonts
+    description: |
+      Setup and convert the .pfb font files in otf.
+      The old .pfb is no more supported in some applications.
+      It's better convert it in otf format.
+
+      See https://askubuntu.com/questions/1073122/is-it-possible-to-convert-postcript-font-to-otf-ttf.
+
+    actions:
+      - |
+        EROOT=${EROOT:-/}
+
+        function ffconvert {
+           fontforge -lang=ff -c 'Open($1); Generate($2)' "$1" "$2"
+        }
+
+        for i in $(find ${EROOT}usr/share/fonts -name \*.pfb) ; do
+        echo $i...
+        ffconvert $i "${i%.pfb}.otf" ;
+        done
+
+
   setup_all_fonts:
     remediate: setup_fonts
     check: fonts
