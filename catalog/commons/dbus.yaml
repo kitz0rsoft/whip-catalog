@@ -1,4 +1,17 @@
 hooks:
+
+  dbus_setup:
+    remediate: rootfs_dbus_setup
+    check: dbus
+    description: |-
+      Validate and review dbus setup.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        chown root:messagebus /usr/libexec/dbus-daemon-launch-helper
+        chmod 4750 /usr/libexec/dbus-daemon-launch-helper
+
   dbus_gen_machineid:
     remediate: rootfs_dbus_setup
     check: dbus
