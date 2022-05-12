@@ -1,0 +1,19 @@
+hooks:
+
+  vboxguest_setup:
+    remediate: rootfs_vboxguest_setup
+    check: vboxguest
+    description: |-
+      Validate and review vboxguest setup.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        mkdir -p /var/run/vboxguest || true
+        chown vboxguest:vboxguest /var/run/vboxguest
+
+
+entrypoint:
+  - /bin/bash
+  - -c
+
