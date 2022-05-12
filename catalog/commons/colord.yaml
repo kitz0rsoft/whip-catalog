@@ -1,0 +1,17 @@
+hooks:
+
+  colord_setup:
+    remediate: rootfs_colord_setup
+    check: colord
+    description: |-
+      Validate and review colord setup.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        eval 'mkdir -p /var/lib/color{,d}/icc || true'
+        chown colord:colord -R /var/lib/color{,d}
+
+entrypoint:
+  - /bin/bash
+  - -c
