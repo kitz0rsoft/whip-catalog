@@ -1,0 +1,21 @@
+hooks:
+  setup_cacerts:
+    check: java
+    remediate: ssl_setup
+    description: |
+      Rebuild java cacerts file.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        if [ -e "${EROOT}"/etc/ssl/certs/java/cacerts ] ; then
+           rm -rvf "${EROOT}"/etc/ssl/certs/java/cacerts
+           /etc/ca-certificates/update.d/java-cacerts || {
+             echo "Error on generate cacerts file"
+             exit 1
+           }
+        fi
+
+entrypoint:
+  - /bin/bash
+  - -c
