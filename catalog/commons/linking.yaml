@@ -1,0 +1,26 @@
+hooks:
+  check:
+    check: linking
+    remediate: check_linking
+    description: |
+      Check for broken libraries and/or binary.
+
+      Set DIRS env to override the default paths.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+        DIRS=${DIRS:-usr/lib64 usr/lib usr/bin bin usr/sbin usr/libexec}
+
+        for l in ${DIRS} ; do
+        echo "Checking directory ${EROOT}${l}..."
+        for i in ${EROOT}${l}/* ; do
+        nf=$(ldd $i 2>&1 | grep "not found" | wc -l)
+        if [ $nf -ne 0 ] ; then
+        echo $i
+        fi
+        done
+        done
+
+entrypoint:
+  - /bin/bash
+  - -c
