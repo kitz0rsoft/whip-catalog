@@ -1,0 +1,131 @@
+hooks:
+
+  postgres_setup:
+    remediate: initdb
+    check: postgresql
+    description: |
+      Setup PostgreSQL database.
+
+      Set SLOT variable with value PostgreSQL
+      version.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+        SLOT=${SLOT:-13}
+        LIBDIR=${LIBDIR:-lib64}
+
+        if [ -f ${EROOT}/lib/gentoo/functions.sh ] ; then
+          source ${EROOT}/lib/gentoo/functions.sh
+        else
+          einfo() {
+            echo "$*\n"
+          }
+          ebegin() {
+            echo "\n"
+          }
+          eend() {
+            echo "\n"
+          }
+        fi
+
+
+        [[ -f "${EROOT}/etc/conf.d/postgresql-${SLOT}" ]] \
+          && source "${EROOT}/etc/conf.d/postgresql-${SLOT}"
+        [[ -z "${PGDATA}" ]] && PGDATA="${EROOT}/etc/postgresql-${SLOT}/"
+        [[ -z "${DATA_DIR}" ]] \
+          && DATA_DIR="${EROOT}/var/lib/postgresql/${SLOT}/data"
+
+
+        # Ensure loading of system locale.
+        if [ -f "${EROOT}/etc/env.d/02locale" ]; then
+          unset LANG
+          unset LC_CTYPE
+          unset LC_NUMERIC
+          unset LC_TIME
+          unset LC_COLLATE
+          unset LC_MONETARY
+          unset LC_MESSAGES
+          unset LC_ALL
+          source "${EROOT}/etc/env.d/02locale"
+          [ -n "${LANG}" ] && export LANG
+          [ -n "${LC_CTYPE}" ] && export LC_CTYPE
+          [ -n "${LC_NUMERIC}" ] && export LC_NUMERIC
+          [ -n "${LC_TIME}" ] && export LC_TIME
+          [ -n "${LC_COLLATE}" ] && export LC_COLLATE
+          [ -n "${LC_MONETARY}" ] && export LC_MONETARY
+          [ -n "${LC_MESSAGES}" ] && export LC_MESSAGES
+          [ -n "${LC_ALL}" ] && export LC_ALL
+        fi
+
+        einfo "PG_INITDB_OPTS is currently set to:"
+        if [[ -z "${PG_INITDB_OPTS}" ]] ; then
+          einfo "    (none)"
+        else
+          einfo "    ${PG_INITDB_OPTS}"
+        fi
+        einfo
+        einfo "Configuration files will be installed to:"
+        einfo "    ${PGDATA}"
+        einfo
+        einfo "The database cluster will be created in:"
+        einfo "    ${DATA_DIR}"
+        einfo
+
+        ebegin "Continuing initialization in 5 seconds (Control-C to cancel)"
+        sleep 5
+        eend 0
+
+        if [ -n "$(ls -A ${DATA_DIR} 2> /dev/null)" ] ; then
+          eerror "The given directory, '${DATA_DIR}', is not empty."
+          eerror "Modify DATA_DIR to point to an empty directory."
+          die "${DATA_DIR} is not empty."
+        fi
+
+        einfo "Creating the data directory ..."
+        if [[ ${EUID} == 0 ]] ; then
+          mkdir -p "$(dirname ${DATA_DIR%/})" || die "Couldn't parent dirs"
+          mkdir -m 0700 "${DATA_DIR%/}" || die "Couldn't make DATA_DIR"
+          chown -h postgres:postgres "${DATA_DIR%/}" || die "Couldn't chown"
+        fi
+
+        einfo "Initializing the database ..."
+
+        if [[ ${EUID} == 0 ]] ; then
+          su - postgres -c "${EROOT}/usr/${LIBDIR}/postgresql-${SLOT}/bin/initdb -D \"${DATA_DIR}\" ${PG_INITDB_OPTS}"
+        else
+          "${EROOT}"/usr/${LIBDIR}/postgresql-${SLOT}/bin/initdb -U postgres -D "${DATA_DIR}" ${PG_INITDB_OPTS}
+        fi
+
+        if [[ "${DATA_DIR%/}" != "${PGDATA%/}" ]] ; then
+          mv "${DATA_DIR%/}"/{pg_{hba,ident},postgresql}.conf "${PGDATA}"
+          ln -s "${PGDATA%/}"/{pg_{hba,ident},postgresql}.conf "${DATA_DIR%/}"
+        fi
+
+        # unix_socket_directory has no effect in postgresql.conf as it's
+        # overridden in the initscript
+        sed '/^#unix_socket_directories/,+1d' -i "${PGDATA%/}"/postgresql.conf
+
+        cat <<- EOF >> "${PGDATA%/}"/postgresql.conf
+          # This is here because of https://bugs.gentoo.org/show_bug.cgi?id=518522
+          # On the off-chance that you might need to work with UTF-8 encoded
+          # characters in PL/Perl
+          plperl.on_init = 'use utf8; use re; package utf8; require "utf8_heavy.pl";'
+        EOF
+
+        einfo "The autovacuum function, which was in contrib, has been moved to the main"
+        einfo "PostgreSQL functions starting with 8.1, and starting with 8.4 is now enabled"
+        einfo "by default. You can disable it in the cluster's:"
+        einfo "    ${PGDATA%/}/postgresql.conf"
+        einfo
+        einfo "The PostgreSQL server, by default, will log events to:"
+        einfo "    ${DATA_DIR%/}/postmaster.log"
+        einfo
+
+        einfo "You should use the '${EROOT}/etc/init.d/postgresql-${SLOT}' script to run PostgreSQL"
+        einfo "instead of 'pg_ctl'."
+
+
+
+entrypoint:
+  - /bin/bash
+  - -c
