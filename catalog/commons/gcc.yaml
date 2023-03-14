@@ -1,0 +1,25 @@
+hooks:
+
+  gcc_setup:
+    remediate: rootfs_gcc_setup
+    check: gcc
+    description: |-
+      Reset ld.so.conf.d configuration for GCC libraries.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        if [ -z "${GCC_VERSION}" ]  ; then
+          echo "Missing GCC_VERSION variable!"
+          exit 1
+        fi
+
+        eval 'mkdir -p ${EROOT}etc/ld.so.conf.d || true' || true
+        echo "
+        /usr/lib/gcc/x86_64-pc-linux-gnu/${GCC_VERSION}/32
+        /usr/lib/gcc/x86_64-pc-linux-gnu/${GCC_VERSION}
+        " > ${EROOT}etc/ld.so.conf.d/05gcc-x86_64-pc-linux-gnu.conf
+
+entrypoint:
+  - /bin/bash
+  - -c
