@@ -6,17 +6,47 @@ hooks:
       Check for broken libraries and/or binary.
 
       Set DIRS env to override the default paths.
+    # Using readlink always to check if the file is a link.
+    # If it's a link and the directory is different using
+    # the directory linked to avoid false mismatch.
     actions:
       - |-
         EROOT=${EROOT:-/}
         DIRS=${DIRS:-usr/lib64 usr/lib usr/bin bin usr/sbin usr/libexec}
 
+        [ -n "$DEBUG" ] && set -x
         for l in ${DIRS} ; do
         echo "Checking directory ${EROOT}${l}..."
         for i in ${EROOT}${l}/* ; do
-        nf=$(ldd $i 2>&1 | grep "not found" | wc -l)
+        link=$(readlink ${i})
+        dlink=""
+        is_link=false
+        f=${i}
+        if [ -n "${link}" ] ; then
+          dlink=$(dirname $link)
+          if [[ "${dlink}" != "${l}" && "${dlink}" != "." ]] ; then
+            if [ "${dlink:0:1}" == "/" ] ; then
+              is_link=true
+            else
+              if [ "${dlink:0:2}" == ".." ] ; then
+                if [ -d "${EROOT}/${l}/${dlink}" ] ; then
+                  dlink=$(realpath ${EROOT}${l}/${dlink})
+                  is_link=true
+                fi
+              fi
+            fi
+          fi
+        fi
+
+        if [ ${is_link} = true ] ; then
+          cd ${dlink}
+          nf=$(ldd ${link} 2>&1 | grep "not found" | wc -l)
+          cd - 2>&1 >/dev/null
+        else
+          nf=$(ldd ${i} 2>&1 | grep "not found" | wc -l)
+        fi
         if [ $nf -ne 0 ] ; then
-        echo $i
+          echo $i
         fi
         done
         done
