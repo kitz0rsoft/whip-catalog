@@ -9,6 +9,8 @@ hooks:
       - |-
         EROOT=${EROOT:-/}
 
+        [ -n "$DEBUG" ] && set -x
+
         VBOX_SUID_BINARY=(
           "VBoxHeadless"
           "VBoxNetAdpCtl"
@@ -47,12 +49,6 @@ hooks:
           "VirtualBoxVM"
         )
 
-        echo "Ensure suid to vbox binary..."
-        for i in ${VBOX_SUID_BINARY[@]}  ; do
-          chown root:vboxusers ${EROOT}opt/VirtualBox/${i}
-          chmod u+s ${EROOT}opt/VirtualBox/${i}
-        done
-
         echo "Ensure owner on vbox binary..."
         for i in ${VBOX_BINARY[@]}  ; do
           chown root:vboxusers ${EROOT}opt/VirtualBox/${i}
@@ -63,6 +59,13 @@ hooks:
           chmod g+rx ${EROOT}opt/VirtualBox/${i}
           chmod g-w ${EROOT}opt/VirtualBox/${i}
         done
+
+        echo "Ensure suid to vbox binary..."
+        for i in ${VBOX_SUID_BINARY[@]}  ; do
+          chown root:vboxusers ${EROOT}opt/VirtualBox/${i}
+          chmod u+s ${EROOT}opt/VirtualBox/${i}
+        done
+
 entrypoint:
   - /bin/bash
   - -c
