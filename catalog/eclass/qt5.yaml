@@ -1,0 +1,208 @@
+hooks:
+
+  qconfig_gen:
+    remediate: qt5lib_setup
+    check: qt5
+    description: |
+      Generates Gentoo-specific qconfig.{h,pri} and qmodule.pri
+      according to the build configuration.
+    actions:
+      - |-
+        LIBDIR=${LIBDIR:-lib64}
+        EROOT=${EROOT:-/}
+        EPREFIX=${EPREFIX:-}
+        T=$(mktemp -d)
+
+        ROOT=${EROOT}
+        QT5_PREFIX=${EPREFIX}/usr
+        QT5_HEADERDIR=${QT5_PREFIX}/include/qt5
+        QT5_LIBDIR=${QT5_PREFIX}/${LIBDIR}
+        QT5_ARCHDATADIR=${QT5_PREFIX}/${LIBDIR}/qt5
+        QT5_BINDIR=${QT5_ARCHDATADIR}/bin
+        QT5_PLUGINDIR=${QT5_ARCHDATADIR}/plugins
+        QT5_LIBEXECDIR=${QT5_ARCHDATADIR}/libexec
+        QT5_IMPORTDIR=${QT5_ARCHDATADIR}/imports
+        QT5_QMLDIR=${QT5_ARCHDATADIR}/qml
+        QT5_DATADIR=${QT5_PREFIX}/share/qt5
+        QT5_DOCDIR=${QT5_PREFIX}/share/qt5-doc
+        QT5_TRANSLATIONDIR=${QT5_DATADIR}/translations
+        QT5_EXAMPLESDIR=${QT5_DATADIR}/examples
+        QT5_TESTSDIR=${QT5_DATADIR}/tests
+        QT5_SYSCONFDIR=${EPREFIX}/etc/xdg
+
+        source /lib/gentoo/functions.sh
+
+        if [ -n "$DEBUG" ] ; then
+          set -x
+        fi
+
+        # from portage file isolated-functions.sh
+        has() {
+          local needle=$1
+          shift
+
+          local x
+          for x in "$@"; do
+            [ "${x}" = "${needle}" ] && return 0
+          done
+          return 1
+        }
+
+        # eshopts_push| eshopts_pop from estack.eclass
+
+        estack_push() {
+          [[ $# -eq 0 ]] && die "estack_push: incorrect # of arguments"
+          local stack_name="_ESTACK_$1_" ; shift
+          eval ${stack_name}+=\( \"\$@\" \)
+        }
+
+        estack_pop() {
+          [[ $# -eq 0 || $# -gt 2 ]] && die "estack_pop: incorrect # of arguments"
+
+          # We use the fugly _estack_xxx var names to avoid collision with
+          # passing back the return value.  If we used "local i" and the
+          # caller ran `estack_pop ... i`, we'd end up setting the local
+          # copy of "i" rather than the caller's copy.  The _estack_xxx
+          # garbage is preferable to using $1/$2 everywhere as that is a
+          # bit harder to read.
+          local _estack_name="_ESTACK_$1_" ; shift
+          local _estack_retvar=$1 ; shift
+          eval local _estack_i=\${#${_estack_name}\[@\]}
+          # Don't warn -- let the caller interpret this as a failure
+          # or as normal behavior (akin to `shift`)
+          [[ $(( --_estack_i )) -eq -1 ]] && return 1
+
+          if [[ -n ${_estack_retvar} ]] ; then
+            eval ${_estack_retvar}=\"\${${_estack_name}\[${_estack_i}\]}\"
+          fi
+          eval unset \"${_estack_name}\[${_estack_i}\]\"
+        }
+
+        eshopts_push() {
+          if [[ $1 == -[su] ]] ; then
+            estack_push eshopts "$(shopt -p)"
+            [[ $# -eq 0 ]] && return 0
+            shopt "$@" || die "${FUNCNAME}: bad options to shopt: $*"
+          else
+            estack_push eshopts "$(shopt -p -o)"
+            [[ $# -eq 0 ]] && return 0
+            set "$@" || die "${FUNCNAME}: bad options to set: $*"
+          fi
+        }
+
+        eshopts_pop() {
+          local s
+          estack_pop eshopts s || die "${FUNCNAME}: unbalanced push"
+          eval "${s}" || die "${FUNCNAME}: sanity: invalid shopt options: ${s}"
+        }
+
+        generate() {
+          einfo "Regenerating gentoo-qconfig.h"
+
+          find "${ROOT%/}${QT5_HEADERDIR}"/Gentoo \
+              -name '*-qconfig.h' -a \! -name 'gentoo-qconfig.h' -type f \
+              -execdir cat '{}' + | sort -u > "${T}"/gentoo-qconfig.h
+
+          [[ -s ${T}/gentoo-qconfig.h ]] || ewarn "Generated gentoo-qconfig.h is empty"
+          mv -f "${T}"/gentoo-qconfig.h "${ROOT%/}${QT5_HEADERDIR}"/Gentoo/gentoo-qconfig.h \
+              || eerror "Failed to install new gentoo-qconfig.h"
+
+          einfo "Updating QT_CONFIG in qconfig.pri"
+
+          local qconfig_pri=${ROOT%/}${QT5_ARCHDATADIR}/mkspecs/qconfig.pri
+          local qconfig_pri_orig=${ROOT%/}${QT5_ARCHDATADIR}/mkspecs/gentoo/qconfig-qtcore.pri
+          if [[ -f ${qconfig_pri} ]]; then
+              local x qconfig_add= qconfig_remove=
+              local qt_config new_qt_config=
+              if [[ -f ${qconfig_pri_orig} ]]; then
+                  qt_config=$(sed -n 's/^QT_CONFIG\s*+=\s*//p' "${qconfig_pri_orig}")
+              else
+                  qt_config=$(sed -n 's/^QT_CONFIG\s*+=\s*//p' "${qconfig_pri}")
+              fi
+
+              # generate list of QT_CONFIG entries from the existing list,
+              # appending QCONFIG_ADD and excluding QCONFIG_REMOVE
+              eshopts_push -s nullglob
+              for x in "${ROOT%/}${QT5_ARCHDATADIR}"/mkspecs/gentoo/*-qconfig.pri; do
+                  qconfig_add+=" $(sed -n 's/^QCONFIG_ADD=\s*//p' "${x}")"
+                  qconfig_remove+=" $(sed -n 's/^QCONFIG_REMOVE=\s*//p' "${x}")"
+              done
+              eshopts_pop
+              for x in ${qt_config} ${qconfig_add}; do
+                  if ! has "${x}" ${new_qt_config} ${qconfig_remove}; then
+                      new_qt_config+=" ${x}"
+                  fi
+              done
+
+              # now replace the existing QT_CONFIG with the generated list
+              sed -i -e "s/^QT_CONFIG\s*+=.*/QT_CONFIG +=${new_qt_config}/" \
+                  "${qconfig_pri}" || eerror "Failed to sed QT_CONFIG in ${qconfig_pri}"
+          else
+              ewarn "${qconfig_pri} does not exist or is not a regular file"
+          fi
+
+          einfo "Updating QT.global_private in qmodule.pri"
+
+          local qmodule_pri=${ROOT%/}${QT5_ARCHDATADIR}/mkspecs/qmodule.pri
+          local qmodule_pri_orig=${ROOT%/}${QT5_ARCHDATADIR}/mkspecs/gentoo/qmodule-qtcore.pri
+          if [[ -f ${qmodule_pri} && -f ${qmodule_pri_orig} ]]; then
+              local x
+              local qprivateconfig_enabled= qprivateconfig_disabled=
+              local qprivateconfig_orig_enabled= qprivateconfig_orig_disabled=
+              local new_qprivateconfig_enabled= new_qprivateconfig_disabled=
+
+              # generate lists of QT.global_private.{dis,en}abled_features
+              qprivateconfig_orig_enabled="$(sed -n 's/^QT.global_private.enabled_features\s=\s*//p' "${qmodule_pri_orig}")"
+              qprivateconfig_orig_disabled="$(sed -n 's/^QT.global_private.disabled_features\s=\s*//p' "${qmodule_pri_orig}")"
+              eshopts_push -s nullglob
+              for x in "${ROOT%/}${QT5_ARCHDATADIR}"/mkspecs/gentoo/*-qmodule.pri; do
+                  qprivateconfig_enabled+=" $(sed -n 's/^QT.global_private.enabled_features\s=\s*//p' "${x}")"
+                  qprivateconfig_disabled+=" $(sed -n 's/^QT.global_private.disabled_features\s=\s*//p' "${x}")"
+              done
+              eshopts_pop
+
+              # anything enabled is enabled, but anything disabled is
+              # only disabled if it isn't enabled somewhere else.
+              # this is because we need to forcibly disable some stuff
+              # in qtcore to support split qtbase.
+              new_qprivateconfig_enabled=${qprivateconfig_enabled}
+              for x in ${qprivateconfig_disabled}; do
+                  if ! has "${x}" ${qprivateconfig_enabled}; then
+                      new_qprivateconfig_disabled+=" ${x}"
+                  fi
+              done
+
+              # check all items from the original qtcore qmodule.pri,
+              # and add them to the appropriate list if not overridden
+              # elsewhere
+              for x in ${qprivateconfig_orig_enabled}; do
+                  if ! has "${x}" ${new_qprivateconfig_enabled} ${new_qprivateconfig_disabled}; then
+                      new_qprivateconfig_enabled+=" ${x}"
+                  fi
+              done
+              for x in ${qprivateconfig_orig_disabled}; do
+                  if ! has "${x}" ${new_qprivateconfig_enabled} ${new_qprivateconfig_disabled}; then
+                      new_qprivateconfig_disabled+=" ${x}"
+                  fi
+              done
+
+              # now replace the existing QT.global_private.{dis,en}abled_features
+              # with the generated list
+              sed \
+                  -e "s/^QT.global_private.enabled_features\s*=.*/QT.global_private.enabled_features =${new_qprivateconfig_enabled}/" \
+                  -e "s/^QT.global_private.disabled_features\s*=.*/QT.global_private.disabled_features =${new_qprivateconfig_disabled}/" \
+                  -i "${qmodule_pri}" || eerror "Failed to sed QT.global_private.enabled_features in ${qmodule_pri}"
+          else
+              ewarn "${qmodule_pri} or ${qmodule_pri_orig} does not exist or is not a regular file"
+          fi
+        }
+
+        generate
+
+        unset -f generate
+
+
+
+entrypoint:
+  - /bin/bash
+  - -c
