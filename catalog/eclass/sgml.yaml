@@ -1,0 +1,336 @@
+hooks:
+
+  # This hooks are used to execute the commands needed to
+  # setup correctly the sgml catalog file /etc/sgml/catalog.
+  #
+  # Based on sgml-catalog.eclass code.
+
+  sgml_cat_install:
+    remediate: sgml_catalog
+    check: sgml-catalog
+    description: |
+      Add an ordinary catalog to a centralized catalog.
+
+      Need two envs:
+
+        * SGML_SOURCE_CATALOG
+        * SGML_CENTRALIZED_CATALOG
+
+      Example:
+
+        SGML_SOURCE_CATALOG="/etc/sgml/xml-docbook-4.1.2.cat" \
+        SGML_CENTRALIZED_CATALOG="/etc/sgml-docbook.cat" \
+        whip h sgml.sgml_cat_install
+
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+
+        source /lib/gentoo/functions.sh
+
+        src=${SGML_SOURCE_CATALOG}
+        dst=${SGML_CENTRALIZED_CATALOG}
+
+        if [ -z "${src}" ] ; then
+          eerror "No SGML_SOURCE_CATALOG variable defined!"
+          exit 1
+        fi
+        if [ -z "${dst}" ] ; then
+          eerror "No SGML_CENTRALIZED_CATALOG variable defined!"
+          exit 1
+        fi
+
+
+        if [[ ! -e "${EPREFIX}${dst}" ]] ; then
+          ewarn "${EPREFIX}${dst} doesn't appear to exist, although it ought to!"
+          exit 0
+        fi
+
+        einfo "Now adding ${EPREFIX}${src} to ${EPREFIX}${dst} and ${EPREFIX}/etc/sgml/catalog"
+
+        "${EPREFIX}"/usr/bin/install-catalog --add \
+          "${EPREFIX}${src}" "${EPREFIX}${dst}" &>/dev/null
+
+        whip h sgml.gensgmlenv
+
+  sgml_cat_remove:
+    remediate: sgml_catalog
+    check: sgml-catalog
+    description: |
+      Remove an ordinary catalog to a centralized catalog.
+
+      Need two envs:
+
+        * SGML_SOURCE_CATALOG
+        * SGML_CENTRALIZED_CATALOG
+
+      Example:
+
+        SGML_SOURCE_CATALOG="/etc/sgml/xml-docbook-4.1.2.cat" \
+        SGML_CENTRALIZED_CATALOG="/etc/sgml-docbook.cat" \
+        whip h sgml.sgml_cat_remove
+
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+
+        source /lib/gentoo/functions.sh
+
+        src=${SGML_SOURCE_CATALOG}
+        dst=${SGML_CENTRALIZED_CATALOG}
+
+        if [ -z "${src}" ] ; then
+          eerror "No SGML_SOURCE_CATALOG variable defined!"
+          exit 1
+        fi
+        if [ -z "${dst}" ] ; then
+          eerror "No SGML_CENTRALIZED_CATALOG variable defined!"
+          exit 1
+        fi
+
+        if [[ ! -e "${EPREFIX}${dst}" ]] ; then
+          ewarn "${EPREFIX}${dst} doesn't appear to exist, although it ought to!"
+          exit 0
+        fi
+
+        einfo "Now removing ${EPREFIX}${src} from ${EPREFIX}${dst} and ${EPREFIX}/etc/sgml/catalog"
+
+        "${EPREFIX}"/usr/bin/install-catalog --remove \
+          "${EPREFIX}${src}" "${EPREFIX}${dst}" &>/dev/null
+
+        whip h sgml.gensgmlenv
+
+  gensgmlenv:
+    remediate: sgml_catalog
+    check: sgml-catalog
+    description: |
+      Generating SGML environment variables
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+
+        source /lib/gentoo/functions.sh
+
+        if [ -e "${EPREFIX}/usr/bin/gensgmlenv" ]
+        then
+          einfo Regenerating SGML environment variables ...
+          gensgmlenv
+          grep -v export "${EPREFIX}/etc/sgml/sgml.env" > "${EPREFIX}/etc/env.d/93sgmltools-lite"
+        fi
+
+  postinst:
+    remediate: install
+    check: sgml-catalog
+    description: |
+      Post-install hook for SGML related packages (docboox-xml-dtd, etc.)
+
+      Envs:
+
+        * SGML_SOURCE: package source catalog
+        * SGML_DESTINATIONS: list of SGML destination catalogs
+
+      Examples:
+
+        SGML_SOURCE=/etc/sgml/xml-docbook-4.1.2 \
+        SGML_DESTINATIONS="/etc/sgml/sgml-docbook.cat /usr/share/sgml/docbook/xml-dtd-4.1.2/docbook.cat" \
+        whip h sgml.postinst
+
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+
+        for d in ${SGML_DESTINATIONS} ; do
+          SGML_SOURCE_CATALOG="${SGML_SOURCE}" \
+          SGML_CENTRALIZED_CATALOG="${d}" \
+          whip h sgml.sgml_cat_install
+        done
+
+  postrm:
+    remediate: remove
+    check: sgml-catalog
+    description: |
+      Post-remove hook for SGML related packages (docboox-xml-dtd, etc.)
+
+      Envs:
+
+        * SGML_SOURCE: package source catalog
+        * SGML_DESTINATIONS: list of SGML destination catalogs
+
+      Examples:
+
+        SGML_SOURCE=/etc/sgml/xml-docbook-4.1.2 \
+        SGML_DESTINATIONS="/etc/sgml/sgml-docbook.cat /usr/share/sgml/docbook/xml-dtd-4.1.2/docbook.cat" \
+        whip h sgml.postinst
+
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+
+        for d in ${SGML_DESTINATIONS} ; do
+          SGML_SOURCE_CATALOG="${SGML_SOURCE}" \
+          SGML_CENTRALIZED_CATALOG="${d}" \
+          whip h sgml.sgml_cat_remove
+        done
+
+  update_catalog:
+    remediate: remove
+    check: sgml-catalog
+    description: |
+      Rebuild the SGML catalog for all installed packages.
+      It uses luet and pkgs-checker and jq
+
+    actions:
+      - |-
+        source /lib/gentoo/functions.sh
+
+        update_docbook_xml_dtd () {
+          local slot=$1
+
+          SGML_SOURCE=/etc/sgml/xml-docbook-${slot} \
+          SGML_DESTINATIONS="/etc/sgml/sgml-docbook.cat /usr/share/sgml/docbook/xml-dtd-${slot}/docbook.cat" \
+          whip h sgml.postinst
+        }
+
+        update_docbook_xml_simple_dtd() {
+          local slot=$1
+
+          if [ "${slot}" = "0" ] ; then
+            slot="4.1.2.4"
+          fi
+
+          SGML_SOURCE_CATALOG="/etc/sgml/xml-simple-docbook-${slot}.cat" \
+          SGML_CENTRALIZED_CATALOG="/usr/share/sgml/xml-simple-dtd/catalog" \
+          whip h sgml.sgml_cat_install
+        }
+
+        update_docbook_sgml_dtd() {
+          local slot=$1
+
+          SGML_SOURCE="/etc/sgml/sgml-docbook-${slot}.cat" \
+          SGML_DESTINATIONS="/usr/share/sgml/docbook/sgml-dtd-${slot}/catalog /etc/sgml/sgml-docbook.cat" \
+          whip h sgml.postinst
+        }
+
+        update_openjade() {
+          local pv=$1
+
+          SGML_SOURCE_CATALOG="/etc/sgml/openjade-${pv}.cat" \
+          SGML_CENTRALIZED_CATALOG="/usr/share/sgml/openjade-${pv}/catalog" \
+          whip h sgml.sgml_cat_install
+
+          SGML_SOURCE_CATALOG="/etc/sgml/openjade-${pv}.cat" \
+          SGML_CENTRALIZED_CATALOG="/usr/share/sgml/openjade-${pv}/dsssl/catalog" \
+          whip h sgml.sgml_cat_install
+
+          SGML_SOURCE_CATALOG="/etc/sgml/sgml-docbook.cat" \
+          SGML_CENTRALIZED_CATALOG="/etc/sgml/openjade-${pv}.cat" \
+          whip h sgml.sgml_cat_install
+        }
+
+        update_sgml_common() {
+          SGML_SOURCE_CATALOG="/etc/sgml/sgml-ent.cat" \
+          SGML_CENTRALIZED_CATALOG="/usr/share/sgml/sgml-iso-entities-8879.1986/catalog" \
+          whip h sgml.sgml_cat_install
+
+          SGML_SOURCE_CATALOG="/etc/sgml/sgml-docbook.cat" \
+          SGML_CENTRALIZED_CATALOG="/etc/sgml/sgml-ent.cat" \
+          whip h sgml.sgml_cat_install
+        }
+
+        update_docbook_dsssl_stylesheets() {
+          local pv=$1
+
+          SGML_SOURCE_CATALOG="/etc/sgml/dsssl-docbook-stylesheets.cat" \
+          SGML_CENTRALIZED_CATALOG="/usr/share/sgml/docbook/dsssl-stylesheets-${pv}/catalog" \
+          whip h sgml.sgml_cat_install
+
+          SGML_SOURCE_CATALOG="/etc/sgml/sgml-docbook.cat" \
+          SGML_CENTRALIZED_CATALOG="/etc/sgml/dsssl-docbook-stylesheets.cat" \
+          whip h sgml.sgml_cat_install
+        }
+
+        update_catalog4pkg() {
+          local pkg=$1
+          local name=""
+          local category=""
+
+          # Check if the package is installed
+          local inst=$(luet s --installed -p ${pkg} | wc -l)
+
+          if [ $inst -eq 0 ] ; then
+            return
+          fi
+
+          category=$(pkgs-checker pkg info ${pkg} | grep "^category:" | awk '{ print $2}')
+          name=$(pkgs-checker pkg info ${pkg} | grep "^name:" | awk '{ print $2}')
+          version=$(luet s --installed -p ${pkg} -o json | jq .stones[0].version -r)
+
+          # NOTE: Instead of to use slot we could just use the package version
+          #       with luet s --installed $pkg -o json | jq .stones[0].version
+          local slot=${category/app-text-}
+          if [ "${slot}" = "app-text" ] ; then
+            slot=0
+          fi
+
+          if [ "${name}" = "docbook-xml-dtd" ] ; then
+            update_docbook_xml_dtd "${slot}"
+          fi
+          if [ "${name}" = "docbook-xml-simple-dtd" ] ; then
+            update_docbook_xml_simple_dtd "${slot}"
+          fi
+          if [ "${name}" = "openjade" ] ; then
+            update_openjade "${version}"
+          fi
+          if [ "${name}" = "sgml-common" ] ; then
+            update_sgml_common
+          fi
+          if [ "${name}" = "docbook-sgml-dtd" ] ; then
+            update_docbook_sgml_dtd "${slot}"
+          fi
+          if [ "${name}" = "docbook-dsssl-stylesheets" ] ; then
+            update_docbook_dsssl_stylesheets "${version}"
+          fi
+        }
+
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
+        PKGS=(
+
+          "app-text/sgml-common"
+
+          "app-text-4.1.2/docbook-xml-dtd"
+          "app-text-4.2/docbook-xml-dtd"
+          "app-text-4.3/docbook-xml-dtd"
+          "app-text-4.4/docbook-xml-dtd"
+          "app-text-4.5/docbook-xml-dtd"
+
+          "app-text/docbook-xml-simple-dtd"
+          "app-text-1.0/docbook-xml-simple-dtd"
+          "app-text-4.1.2.5/docbook-xml-simple-dtd"
+
+          "app-text/openjade"
+
+          "app-text-3.0/docbook-sgml-dtd"
+          "app-text-3.1/docbook-sgml-dtd"
+          "app-text-4.0/docbook-sgml-dtd"
+          "app-text-4.1/docbook-sgml-dtd"
+          "app-text-4.2/docbook-sgml-dtd"
+          "app-text-4.3/docbook-sgml-dtd"
+          "app-text-4.4/docbook-sgml-dtd"
+          "app-text-4.5/docbook-sgml-dtd"
+
+          "app-text/docbook-dsssl-stylesheets"
+        )
+
+        for p in ${PKGS[@]} ; do
+          einfo "Checking package ${p}..."
+          update_catalog4pkg "${p}"
+        done
+
+
+
+entrypoint:
+  - /bin/bash
+  - -c
