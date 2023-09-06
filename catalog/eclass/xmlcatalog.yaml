@@ -131,7 +131,7 @@ hooks:
 
             DOC_TYPE=public \
             DOC_DESCR="-//OMF//DTD Scrollkeeper OMF Variant V1.0//EN" \
-            DTD_FILE=usr/share/xml/scrollkeeper/dtds/${DTD_FILE}" \
+            DTD_FILE="usr/share/xml/scrollkeeper/dtds/${DTD_FILE}" \
             TARGET_CATALOG=etc/xml/catalog \
             whip h xmlcatalog.cat_install
 
