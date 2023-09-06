@@ -1,0 +1,161 @@
+hooks:
+
+  # This hooks are used to execute the commands needed to
+  # update XML catalog through the xmlcatalog command.
+  #
+  # Needed for scrollkeeper-dtd, xhtml packages.
+  #
+  # Based on sgml-catalog.eclass code.
+
+  cat_install:
+    remediate: xml_catalog
+    check: xml-catalog
+    description: |
+      Add new DTD to the XML Catalog.
+
+      Variables:
+
+        * DOC_TYPE
+        * DOC_DESCR
+        * DTD_FILE
+        * TARGET_CATALOG
+
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+        EROOT=${EROOT:-/}
+        DOC_TYPE=${DOC_TYPE:-public}
+
+        source /lib/gentoo/functions.sh
+
+        if [ -z "${DOC_TYPE}" ] ; then
+          eerror "Invalid DOC_TYPE variable"
+          exit 1
+        fi
+
+        if [ -z "${DOC_DESCR}" ] ; then
+          eerror "Invalid DOC_DESCR variable"
+          exit 1
+        fi
+
+        if [ -z "${DTD_FILE}" ] ; then
+          eerror "Invalid DTD_FILE variable"
+          exit 1
+        fi
+
+        if [ -z "${TARGET_CATALOG}" ] ; then
+          eerror "Invalid TARGET_CATALOG variable"
+          exit 1
+        fi
+
+        einfo "Update catalog ${TARGET_CATALOG}..."
+
+        "${EROOT}"usr/bin/xmlcatalog --noout --add \
+            "${DOC_TYPE}" \
+            "${DOC_DESCR}" \
+            "${EROOT}${DTD_FILE}" \
+            "${EROOT}${TARGET_CATALOG}"
+
+  cat_remove:
+    remediate: xml_catalog
+    check: xml-catalog
+    description: |
+      Cleaning a DTD from the XML Catalog.
+
+      Variables:
+
+        * DTD_FILE
+        * TARGET_CATALOG
+
+    actions:
+      - |-
+        EPREFIX=${EPREFIX:-}
+        EROOT=${EROOT:-/}
+        DOC_TYPE=${DOC_TYPE:-public}
+
+        source /lib/gentoo/functions.sh
+
+        if [ -z "${DTD_FILE}" ] ; then
+          eerror "Invalid DTD_FILE variable"
+          exit 1
+        fi
+
+        if [ -z "${TARGET_CATALOG}" ] ; then
+          eerror "Invalid TARGET_CATALOG variable"
+          exit 1
+        fi
+
+        einfo "Cleaning catalog ${TARGET_CATALOG}..."
+
+        "${EROOT}"usr/bin/xmlcatalog --noout --del \
+            "${EROOT}${DTD_FILE}" \
+            "${EROOT}${TARGET_CATALOG}"
+
+  update_catalog:
+    remediate: remove
+    check: xml-catalog
+    description: |
+      Rebuild the XML catalog for all installed packages.
+      It uses luet and pkgs-checker and jq
+
+    actions:
+      - |-
+        source /lib/gentoo/functions.sh
+
+        update_catalog4pkg() {
+          local pkg=$1
+          local name=""
+          local category=""
+
+          # Check if the package is installed
+          local inst=$(luet s --installed -p ${pkg} | wc -l)
+
+          if [ $inst -eq 0 ] ; then
+            return
+          fi
+
+          category=$(pkgs-checker pkg info ${pkg} | grep "^category:" | awk '{ print $2}')
+          name=$(pkgs-checker pkg info ${pkg} | grep "^name:" | awk '{ print $2}')
+          version=$(luet s --installed -p ${pkg} -o json | jq .stones[0].version -r)
+
+          # NOTE: Instead of to use slot we could just use the package version
+          #       with luet s --installed $pkg -o json | jq .stones[0].version
+          local slot=${category/app-text-}
+          if [ "${slot}" = "app-text" ] ; then
+            slot=0
+          fi
+
+          if [ "${name}" = "scrollkeeper-dtd" ] ; then
+            DTD_FILE="scrollkeeper-omf.dtd"
+            SRC_URI="http://scrollkeeper.sourceforge.net/dtds/scrollkeeper-omf-1.0/${DTD_FILE}"
+
+            DOC_TYPE=public \
+            DOC_DESCR="-//OMF//DTD Scrollkeeper OMF Variant V1.0//EN" \
+            DTD_FILE=usr/share/xml/scrollkeeper/dtds/${DTD_FILE}" \
+            TARGET_CATALOG=etc/xml/catalog \
+            whip h xmlcatalog.cat_install
+
+            DOC_TYPE=system \
+            DOC_DESCR="${SRC_URI}" \
+            DTD_FILE=usr/share/xml/scrollkeeper/dtds/scrollkeeper-omf.dtd" \
+            TARGET_CATALOG=etc/xml/catalog \
+            whip h xmlcatalog.cat_install
+
+          fi
+
+        }
+
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
+        PKGS=(
+          "app-text/scrollkeeper-dtd"
+        )
+
+        for p in ${PKGS[@]} ; do
+          einfo "Checking package ${p}..."
+          update_catalog4pkg "${p}"
+        done
+
+
