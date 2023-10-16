@@ -1,0 +1,178 @@
+hooks:
+
+  upgrade_pms:
+    remediate: upgrade_pms
+    check: system
+    description: |-
+      Upgrade Anise PMS without the others packages.
+
+      NOTE: Need mottainai-stable installed.
+    actions:
+      - |-
+        source /lib/gentoo/functions.sh
+        source /etc/profile
+
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
+        disabled_repos=""
+
+        LUET_PKG=${LUET_PKG:-system/luet-geaaru-thin}
+        MOTTAINAI_REPO=${MOTTAINAI_REPO:-mottainai-stable}
+
+        einfo "Checking if ${LUET_PKG} is installed..."
+        out=$(luet s ${LUET_PKG} --installed)
+        if [ "${out}" == "" ] ; then
+          eerror "Package ${LUET_PKG} seems not present."
+          eerror "Maybe you need set LUET_PKG env to system/luet-geaaru or"
+          eerror "system/luet-geaaru-testing?"
+          exit 1
+        fi
+
+        einfo "Searching repositories to disable temporary..."
+        for i in $(luet repo list --quiet) ; do
+        if [ $i != "${MOTTAINAI_REPO}" ] ; then
+          if [ $i != "geaaru-repo-index" ] ; then
+            disabled_repos="${disabled_repos} $i"
+          fi
+        fi
+        done
+
+        if [ "${disabled_repos}" != "" ] ; then
+          einfo "Repositories to disable: ${disabled_repos}"
+          luet repo disable ${disabled_repos}
+        fi
+
+        luet repo update || exit 1
+        # TODO: replace these steps with a specific command on PMS
+
+        # copy luet binary on tmp path
+        cp -f /usr/bin/luet /tmp/luet
+
+        einfo "Upgrading package ${LUET_PKG}..."
+
+        /tmp/luet rm -y --nodeps ${LUET_PKG}
+        /tmp/luet i -y --nodeps ${LUET_PKG}
+
+        rm /tmp/luet
+
+        if [ "${disabled_repos}" != "" ] ; then
+          einfo "Re-enable repos ${disabled_repos}..."
+          luet repo enable ${disabled_repos}
+        fi
+
+        luet cleanup
+
+        einfo "All done. Have you a good day!"
+
+
+  apply-subsets:
+    remediate: subsets
+    check: system
+    description: |-
+      Apply changes of the subsets to system.
+    actions:
+      - |-
+
+        EROOT=${EROOT:-/}
+
+        source /lib/gentoo/functions.sh
+        source /etc/profile
+
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
+        luet miner ri $(luet s --installed . )
+
+  upgrade2funtoo-next:
+    remediate: upgrade
+    check: system
+    description: |-
+      Upgrade Funtoo 1.4 rootfs to Funtoo Next release.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        source /lib/gentoo/functions.sh
+        source /etc/profile
+
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
+        macaroni_sec=""
+        einfo "Checking if disable macaroni-security repo for now..."
+        if [ "$(luet repo list --quiet | grep macaroni-security | wc -l)" == "1" ] ; then
+          macaroni_sec=$(luet repo list --quiet --enabled | grep macaroni-security)
+        fi
+
+        if [ -n "${macaroni_sec}" ] ; then
+          einfo "Disabling repo ${macaroni_sec}..."
+          luet repo disable ${macaroni_sec}
+        fi
+
+        luet repo update || {
+          eerror "Error on upgrade repos. Process interrupted."
+          exit 1
+        }
+
+        echo ""
+        echo ""
+        einfo "====================================="
+        einfo "Starting stage1 - upgrade deep..."
+        einfo "====================================="
+        luet upgrade --deep || {
+          eerror "Error on stage1. Process interrupted."
+          exit 1
+        }
+
+        echo ""
+        echo ""
+
+        einfo "====================================="
+        einfo "Starting stage2 - Install the new LLVM (slot 13)..."
+        einfo "====================================="
+        luet i -y llvm
+        # Removing the configuration of llvm11 (must be added on finalize)
+        rm ${EROOT}/etc/ld.so.conf.d/06-llvm11.conf
+        macaronictl env-update
+
+        echo ""
+        echo ""
+
+        einfo "====================================="
+        einfo "Starting stage3 - reinstall all packages to ensure migration to Next"
+        einfo "====================================="
+        luet miner ri $(luet s --installed . )
+        macaronictl env-update
+
+        echo ""
+        echo ""
+
+        einfo "====================================="
+        einfo "Starting stage4 - Cleaning cache..."
+        einfo "====================================="
+        luet cleanup
+
+        echo ""
+        echo ""
+        einfo "====================================="
+        einfo "Starting stage5 - Rebuilding initramfs images..."
+        einfo "====================================="
+        macaronictl kernel geninitrd --all --set-links --purge --grub
+
+        echo ""
+        echo ""
+        einfo "====================================="
+        einfo "System upgraded correctly. "
+        einfo "Run `macaronictl etc-update` to merge configs and"
+        einfo "run again the rebuild of initramfs:"
+        einfo "$> macaronictl kernel geninitrd --all --set-links --purge --grub"
+        einfo "====================================="
+
+
+entrypoint:
+  - /bin/bash
+  - -c
