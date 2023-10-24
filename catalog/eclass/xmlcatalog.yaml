@@ -48,6 +48,10 @@ hooks:
           exit 1
         fi
 
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
         einfo "Update catalog ${TARGET_CATALOG}..."
 
         "${EROOT}"usr/bin/xmlcatalog --noout --add \
@@ -137,7 +141,7 @@ hooks:
 
             DOC_TYPE=system \
             DOC_DESCR="${SRC_URI}" \
-            DTD_FILE=usr/share/xml/scrollkeeper/dtds/scrollkeeper-omf.dtd" \
+            DTD_FILE="usr/share/xml/scrollkeeper/dtds/scrollkeeper-omf.dtd" \
             TARGET_CATALOG=etc/xml/catalog \
             whip h xmlcatalog.cat_install
 
@@ -150,7 +154,7 @@ hooks:
         fi
 
         PKGS=(
-          "app-text/scrollkeeper-dtd"
+          "app-text-1.0/scrollkeeper-dtd"
         )
 
         for p in ${PKGS[@]} ; do
