@@ -77,8 +77,8 @@ hooks:
 
         EROOT=${EROOT:-/}
 
-        source /lib/gentoo/functions.sh
         source /etc/profile
+        source /lib/gentoo/functions.sh
 
         if [ -n "${DEBUG}" ] ; then
           set -x
@@ -94,9 +94,12 @@ hooks:
     actions:
       - |-
         EROOT=${EROOT:-/}
+        SKIP_GRUB=${SKIP_GRUB:-0}
+        # Forcing console type for colors
+        CONSOLETYPE=${CONSOLETYPE:-tty}
 
-        source /lib/gentoo/functions.sh
         source /etc/profile
+        source /lib/gentoo/functions.sh
 
         if [ -n "${DEBUG}" ] ; then
           set -x
@@ -118,12 +121,28 @@ hooks:
           exit 1
         }
 
+        einfo "====================================="
+        einfo "Reindex PMS database..."
+        einfo "====================================="
+        # Ensuring that the database is aligned
+        luet database reindex
+
+        einfo "====================================="
+        einfo "Executing preliminary operations to fix upgrade process..."
+        einfo "====================================="
+        einfo "Removing binutils links and directories..."
+        # This is needed because at the moment luet interrupts
+        # the uninstall process when the files to remove are broken links.
+        rm -rvf /usr/x86_64-pc-linux-gnu/bin/*
+        rm -rvf /usr/x86_64-pc-linux-gnu/binutils-bin/
+        rm -rvf /usr/x86_64-pc-linux-gnu/lib/ldscripts
+
         echo ""
         echo ""
         einfo "====================================="
         einfo "Starting stage1 - upgrade deep..."
         einfo "====================================="
-        luet upgrade --deep || {
+        luet upgrade --deep -y || {
           eerror "Error on stage1. Process interrupted."
           exit 1
         }
@@ -161,13 +180,15 @@ hooks:
         einfo "====================================="
         einfo "Starting stage5 - Rebuilding initramfs images..."
         einfo "====================================="
-        macaronictl kernel geninitrd --all --set-links --purge --grub
+        if [ "${SKIP_GRUB}" = "0" ] ; then
+          macaronictl kernel geninitrd --all --set-links --purge --grub
+        fi
 
         echo ""
         echo ""
         einfo "====================================="
         einfo "System upgraded correctly. "
-        einfo "Run `macaronictl etc-update` to merge configs and"
+        einfo "Run 'macaronictl etc-update' to merge configs and"
         einfo "run again the rebuild of initramfs:"
         einfo "$> macaronictl kernel geninitrd --all --set-links --purge --grub"
         einfo "====================================="
