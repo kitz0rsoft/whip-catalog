@@ -146,6 +146,9 @@ hooks:
           eerror "Error on stage1. Process interrupted."
           exit 1
         }
+        # TODO: Seems a bug. coreutils and util-linux are not catched the
+        # first time.
+        luet upgrade -y
 
         echo ""
         echo ""
@@ -173,7 +176,9 @@ hooks:
         einfo "====================================="
         einfo "Starting stage4 - Cleaning cache..."
         einfo "====================================="
-        luet cleanup
+        if [ -z "${SKIP_CLEANUP}" ] ; then
+          luet cleanup
+        fi
 
         echo ""
         echo ""
