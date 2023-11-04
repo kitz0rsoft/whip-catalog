@@ -180,10 +180,16 @@ hooks:
           luet cleanup
         fi
 
+        einfo "====================================="
+        einfo "Starting stage5 - Install GCC and new packages..."
+        einfo "====================================="
+        luet i -y gcc virtual/base elogind systemd-tmpfiles
+        luet rm -y virtual/base virtual/sh opentmpfiles
+
         echo ""
         echo ""
         einfo "====================================="
-        einfo "Starting stage5 - Rebuilding initramfs images..."
+        einfo "Starting stage6 - Rebuilding initramfs images..."
         einfo "====================================="
         if [ "${SKIP_GRUB}" = "0" ] ; then
           macaronictl kernel geninitrd --all --set-links --purge --grub
@@ -194,7 +200,7 @@ hooks:
         einfo "====================================="
         einfo "System upgraded correctly. "
         einfo "Run 'macaronictl etc-update' to merge configs and"
-        einfo "run again the rebuild of initramfs:"
+        einfo "run again the rebuild of initramfs if needed with:"
         einfo "$> macaronictl kernel geninitrd --all --set-links --purge --grub"
         einfo "====================================="
 
