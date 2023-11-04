@@ -174,17 +174,17 @@ hooks:
         echo ""
 
         einfo "====================================="
-        einfo "Starting stage4 - Cleaning cache..."
+        einfo "Starting stage4 - Install GCC and new packages..."
+        einfo "====================================="
+        luet i -y gcc virtual/base elogind systemd-tmpfiles
+        luet rm -y virtual/base virtual/sh sys-apps/opentmpfiles
+
+        einfo "====================================="
+        einfo "Starting stage5 - Cleaning cache..."
         einfo "====================================="
         if [ -z "${SKIP_CLEANUP}" ] ; then
           luet cleanup
         fi
-
-        einfo "====================================="
-        einfo "Starting stage5 - Install GCC and new packages..."
-        einfo "====================================="
-        luet i -y gcc virtual/base elogind systemd-tmpfiles
-        luet rm -y virtual/base virtual/sh opentmpfiles
 
         echo ""
         echo ""
