@@ -146,8 +146,9 @@ hooks:
           eerror "Error on stage1. Process interrupted."
           exit 1
         }
-        # TODO: Seems a bug. coreutils and util-linux are not catched the
-        # first time.
+        # TODO: coreutils and util-linux are not catched the
+        # first time because anise-portage-converter add them as conflicts
+        # in net-tools and procps packages. We need fix this in anise-portage-converter
         luet upgrade -y
 
         echo ""
@@ -204,6 +205,112 @@ hooks:
         einfo "$> macaronictl kernel geninitrd --all --set-links --purge --grub"
         einfo "====================================="
 
+  funtoo2macaroni:
+    remediate: upgrade
+    check: system
+    description: |-
+      Integrate Macaroni on Funtoo Next rootfs.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+        SKIP_GRUB=${SKIP_GRUB:-0}
+        # Forcing console type for colors
+        CONSOLETYPE=${CONSOLETYPE:-tty}
+
+        source /etc/profile
+        source /lib/gentoo/functions.sh
+
+        if [ -n "${DEBUG}" ] ; then
+          set -x
+        fi
+
+        luet repo update || {
+          eerror "Error on upgrade repos. Process interrupted."
+          exit 1
+        }
+
+        einfo "====================================="
+        einfo "Executing preliminary operations to fix upgrade process..."
+        einfo "====================================="
+        einfo "Removing binutils links and directories..."
+        # This is needed because at the moment luet interrupts
+        # the uninstall process when the files to remove are broken links.
+        rm -rvf /usr/x86_64-pc-linux-gnu/bin/*
+        rm -rvf /usr/x86_64-pc-linux-gnu/binutils-bin/
+        rm -rvf /usr/x86_64-pc-linux-gnu/lib/ldscripts
+
+        echo ""
+        echo ""
+        einfo "====================================="
+        einfo "Starting stage1 - upgrade deep..."
+        einfo "====================================="
+        luet upgrade --deep -y || {
+          eerror "Error on stage1. Process interrupted."
+          exit 1
+        }
+        # TODO: coreutils and util-linux are not catched the
+        # first time because anise-portage-converter add them as conflicts
+        # in net-tools and procps packages. We need fix this in anise-portage-converter
+        luet upgrade -y
+
+        echo ""
+        echo ""
+
+        einfo "====================================="
+        einfo "Starting stage2 - Install the new LLVM (slot 13)..."
+        einfo "====================================="
+        luet i -y llvm
+        # Removing the configuration of llvm11 (must be added on finalize)
+        rm ${EROOT}/etc/ld.so.conf.d/06-llvm11.conf
+        macaronictl env-update
+
+        echo ""
+        echo ""
+
+        einfo "====================================="
+        einfo "Starting stage3 - reinstall all packages to ensure migration to Next"
+        einfo "====================================="
+        luet miner ri $(luet s --installed . )
+        macaronictl env-update
+
+        echo ""
+        echo ""
+
+        einfo "====================================="
+        einfo "Starting stage4 - Install GCC and new packages..."
+        einfo "====================================="
+        # the existing empty make.conf avoid setting of CHOST.
+        rm /etc/portage/make.conf
+        luet i -y gcc virtual/base elogind
+        luet rm -y virtual/base virtual/sh
+
+        einfo "====================================="
+        einfo "Starting stage5 - Cleaning cache..."
+        einfo "====================================="
+        if [ -z "${SKIP_CLEANUP}" ] ; then
+          luet cleanup
+        fi
+
+        echo ""
+        echo ""
+        einfo "====================================="
+        einfo "Starting stage6 - Rebuilding initramfs images..."
+        einfo "====================================="
+        if [ "${SKIP_GRUB}" = "0" ] ; then
+          macaronictl kernel geninitrd --all --set-links --purge --grub
+        fi
+
+        # It seems a container image issue
+        locale-gen
+
+        echo ""
+        echo ""
+        einfo "====================================="
+        einfo "System upgraded correctly. "
+        einfo "Run 'macaronictl etc-update' to merge configs and"
+        einfo "run again the rebuild of initramfs if needed with:"
+        einfo "$> macaronictl kernel geninitrd --all --set-links --purge --grub"
+        einfo "====================================="
 
 entrypoint:
   - /bin/bash
