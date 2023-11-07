@@ -101,6 +101,12 @@ hooks:
         source /etc/profile
         source /lib/gentoo/functions.sh
 
+        is_macaroni_system=0
+
+        if [ -e /etc/macaroni-release ] ; then
+          is_macaroni_system=1
+        fi
+
         if [ -n "${DEBUG}" ] ; then
           set -x
         fi
@@ -125,7 +131,11 @@ hooks:
         einfo "Reindex PMS database..."
         einfo "====================================="
         # Ensuring that the database is aligned
-        luet database reindex
+        if [ -z "${SKIP_REINDEX}" ] ; then
+          luet database reindex
+        else
+          einfo "Reindex skipped."
+        fi
 
         einfo "====================================="
         einfo "Executing preliminary operations to fix upgrade process..."
@@ -142,6 +152,20 @@ hooks:
         einfo "====================================="
         einfo "Starting stage1 - upgrade deep..."
         einfo "====================================="
+
+        _remove_pkgifinstalled() {
+          if [ "$(luet s -p $1 --installed | wc -l)" != "0" ] ; then
+            luet rm -y --nodeps $1
+          fi
+        }
+
+        # This is needed on upgrade Macaroni OS because we move to
+        # ed2k-ovmf-bin as default and net-misc/ntpt
+        _remove_pkgifinstalled "sys-firmware/ed2k-ovmf"
+        _remove_pkgifinstalled "net-misc/openntpd"
+        # We use sys-firmware/seabios-bin package.
+        _remove_pkgifinstalled "sys-firmware/seabios"
+
         luet upgrade --deep -y || {
           eerror "Error on stage1. Process interrupted."
           exit 1
@@ -178,7 +202,16 @@ hooks:
         einfo "Starting stage4 - Install GCC and new packages..."
         einfo "====================================="
         luet i -y gcc virtual/base elogind systemd-tmpfiles
-        luet rm -y virtual/base virtual/sh sys-apps/opentmpfiles
+        if [ "${is_macaroni_system}" = "0" ] ; then
+          luet rm -y virtual/base virtual/sh sys-apps/opentmpfiles
+        else
+          luet rm -y sys-apps/opentmpfiles
+        fi
+
+        # Remove alsa broken links
+        if [ -d /etc/alsa/conf.d ] ; then
+          rm /etc/alsa/conf.d/10-speexrate.conf /etc/alsa/conf.d/60-speex.conf
+        fi
 
         einfo "====================================="
         einfo "Starting stage5 - Cleaning cache..."
