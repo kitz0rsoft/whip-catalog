@@ -213,6 +213,11 @@ hooks:
           rm /etc/alsa/conf.d/10-speexrate.conf /etc/alsa/conf.d/60-speex.conf
         fi
 
+        # Nokit kit no more available in Funtoo Next
+        if [ -e /etc/portage/repos.conf/ego-nokit ] ; then
+          rm /etc/portage/repos.conf/ego-nokit
+        fi
+
         einfo "====================================="
         einfo "Starting stage5 - Cleaning cache..."
         einfo "====================================="
