@@ -64,9 +64,12 @@ hooks:
     actions:
       - |
         EROOT=${EROOT:-/}
+        FF_OPTS=${FF_OPTS:--lang=ff}
+
+        if [ -n "${DEBUG}" ] ; then set -x ; fi
 
         function ffconvert {
-           fontforge -lang=ff -c 'Open($1); Generate($2)' "$1" "$2"
+           fontforge ${FF_OPTS} -c 'Open($1); Generate($2)' "$1" "$2"
         }
 
         for i in $(find ${EROOT}usr/share/fonts -name \*.pfb) ; do
