@@ -103,13 +103,22 @@ hooks:
 
         is_macaroni_system=0
 
-        if [ -e /etc/macaroni-release ] ; then
+        if [ -e /etc/macaroni/release ] ; then
           is_macaroni_system=1
         fi
 
         if [ -n "${DEBUG}" ] ; then
           set -x
         fi
+
+        if [ "${is_macaroni_system}" = 1 ] ; then
+          einfo "System Detected:       Macaroni OS"
+        else
+          einfo "System Detected:       Funtoo OS"
+        fi
+        einfo ""
+        einfo "If system detection is wrong run CTRL+C!"
+        sleep 2
 
         macaroni_sec=""
         einfo "Checking if disable macaroni-security repo for now..."
@@ -241,6 +250,10 @@ hooks:
         einfo "Run 'macaronictl etc-update' to merge configs and"
         einfo "run again the rebuild of initramfs if needed with:"
         einfo "$> macaronictl kernel geninitrd --all --set-links --purge --grub"
+        echo ""
+        einfo "Please check /boot to verify that kernel is correctly installed."
+        einfo "If is not visible, try to install it with:"
+        einfo "$> anise i kernel-${branch}/macaroni-full kernel-${branch}/macaroni-modules"
         einfo "====================================="
 
   funtoo2macaroni:
