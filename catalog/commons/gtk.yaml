@@ -34,6 +34,18 @@ hooks:
         update-mime-database ${EROOT}usr/share/mime
         gdk-pixbuf-query-loaders --update-cache
 
+  postinst:
+    remediate: gtk_stuff
+    check: gtk
+    description: |-
+      Execute all hooks needed to update mime cache, glib schemas and icons cache.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        whip h gtk.gtk_update_icons gtk.glib_update_schemas gtk.mime_update_db
+
+
   gdk_pixbuf_update:
     remediate: gdk_pixbuf_cache
     check: gtk
