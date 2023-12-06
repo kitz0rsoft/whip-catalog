@@ -34,6 +34,60 @@ hooks:
         update-mime-database ${EROOT}usr/share/mime
         gdk-pixbuf-query-loaders --update-cache
 
+  gdk_pixbuf_update:
+    remediate: gdk_pixbuf_cache
+    check: gtk
+    description: |-
+      Update gdk-pixbuf loader cache if
+      GNOME2_ECLASS_GDK_PIXBUF_LOADERS has some.
+      Method for postinst/postremove.
+
+      Set POSTINST=1 for post install phase.
+      NOTE: We need the variables ${PACKAGE_CATEGORY}/${PACKAGE_NAME}.
+    actions:
+    - |-
+      EROOT=${EROOT:-/}
+      LIBDIR=${LIBDIR:-lib64}
+      updater="${EROOT}/usr/bin/gdk-pixbuf-query-loaders"
+
+      if [ -n "${DEBUG}" ] ; then
+        set -x
+      fi
+
+      source /etc/profile
+
+      if [ -z "${PACKAGE_CATEGORY}" ] ; then
+        echo "PACKAGE_CATEGORY variable is not set."
+        exit 1
+      fi
+
+      if [ -z "${PACKAGE_NAME}" ] ; then
+        echo "PACKAGE_NAME variable is not set."
+        exit 1
+      fi
+
+      if [ "${POSTINST}" = "1" ] ; then
+        # Retrieve the gdk pixbuf file from file list. probably is better
+        # save the list to a variable?
+        export GNOME2_ECLASS_GDK_PIXBUF_LOADERS=$(anise q files ${PACKAGE_CATEGORY}/${PACKAGE_NAME} 2>/dev/null | grep 'usr/lib.*/gdk-pixbuf-2.0/.*')
+      fi
+
+      if [[ -z ${GNOME2_ECLASS_GDK_PIXBUF_LOADERS} ]]; then
+        echo "gdk-pixbuf loader cache does not need an update."
+        exit 0
+      fi
+
+      # causes segfault if set,
+      unset __GL_NO_DSO_FINALIZER
+
+      echo "Updating gdk-pixbuf loader cache..."
+      tmp_file=$(mktemp)
+      ${updater} 1> "${tmp_file}" &&
+      chmod 0644 "${tmp_file}" &&
+      cp -f "${tmp_file}" "${EROOT}usr/${LIBDIR}/gdk-pixbuf-2.0/2.10.0/loaders.cache" &&
+      rm "${tmp_file}"
+      # don't replace this with mv, required for SELinux support
+
 entrypoint:
   - /bin/bash
   - -c
