@@ -1,0 +1,50 @@
+hooks:
+
+  mysql_setup:
+    remediate: rootfs_mysql_setup
+    check: mysql
+    description: |-
+      Validate and Setup MySQL setup.
+
+      Set MYSQL_BINDADDR to override default binding on 127.0.0.1.
+
+      Set MYSQL_DATADIR to override default /var/lib/mysql path.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        echo "Creating /var/log/mysql directory... (if not present)"
+        mkdir -p /var/log/mysql || true
+        chown mysql:mysql /var/log/mysql
+
+        echo "Creating /var/run/mysql directory... (if not present)"
+        mkdir -p /var/run/mysql || true
+        chown mysql:mysql /var/run/mysql
+
+        if [ -n "${MYSQL_BINDADDR}" ] ; then
+          sed -i -e 's|/var/log/mysql/mysqld.err|/var/log/mysql/mysqld.log|g' \
+              -e "s|127.0.0.1|${MYSQL_BINDADDR}|g" \
+              ${EROOT}etc/mysql/mysql.d/50-distro-server.cnf
+        fi
+
+        # Initialize /var/lib/mysql directory if it's needed
+        datadir=${MYSQL_DATADIR:-${EROOT}var/lib/mysql}
+
+        toinit=false
+        if [ ! -d ${datadir} ] ; then
+          toinit=true
+        else
+          if [ "$(find ${datadir} | wc -l)" ==  "1" ] ; then
+            toinit=true
+          fi
+        fi
+        if [ ${toinit} ] ; then
+          mysqld --initialize-insecure \
+            --default_authentication_plugin=mysql_native_password \
+            --datadir=${datadir}
+        fi
+
+entrypoint:
+  - /bin/bash
+  - -c
+
