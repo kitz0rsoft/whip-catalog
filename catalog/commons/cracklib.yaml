@@ -1,0 +1,18 @@
+hooks:
+
+  generate-dictionary:
+    remediate: rootfs_setup
+    check: cracklib
+    description: |-
+      Generate cracklib dictionary /usr/lib/cracklib_dict.*
+      used to validate passwords updated with passwd.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+
+        ${EROOT}/usr/sbin/cracklib-format ${EROOT}/usr/share/dict/* | ${EROOT}/usr/sbin/cracklib-packer ${ROOT}/usr/lib/cracklib_dict
+
+entrypoint:
+  - /bin/bash
+  - -c
+
