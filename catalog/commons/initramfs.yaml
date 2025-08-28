@@ -1,0 +1,37 @@
+hooks:
+  generate_with_dracut:
+    remediate: dracut_initramfs
+    check: dracut
+    description: |
+      Create the initramfs with dracut.
+    actions:
+      - |-
+        EROOT=${EROOT:-/}
+        args="-N -f --xz -v"
+
+        # Extra Dracut modules included for features, like lvm and crypt
+        extra_mods="${DRACUT_ADD_MODULES}"
+
+        # Extra kernel modules included
+        extra_drivers="${DRACUT_ADD_DRIVERS}"
+
+        # Ensure KMODDIR is set
+        kmoddir="${KMODDIR:-/lib/modules/$(uname -r)}"
+
+        # Ensure that kver is set, like "6.12.33"
+        kver="${KVER:-$(uname -r | cut -d '-' -f 1)}"
+
+        # Ensure that ktype is set, like "debian"
+        ktype=${KTYPE:-$(uname -r | cut -d '-' -f 2)}
+
+        # Ensure that ksuffix is set, like "debian-mark"
+        ksuffix=${KSUFFIX:-$(uname -r | cut -d '-' --complement -f 1)}
+
+        # Allow to define a different destination path
+        initramfs_path=${DRACUT_IMAGE_PREFIX:-/boot}
+
+        DRACUT_KMODDIR_OVERRIDE=1 dracut $args --kmoddir "$kmoddir" ${extra_mods:+-a "$extra_mods"} ${extra_drivers:+--add-drivers "$extra_drivers"} ${initramfs_path}/initramfs${ktype:+-$ktype}-$kver${ksuffix:+-$ksuffix} ${kmoddir#/lib/modules/}
+
+entrypoint:
+  - /bin/bash
+  - -c
