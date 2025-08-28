@@ -51,13 +51,19 @@ hooks:
 
         echo "Ensure owner on vbox binary..."
         for i in ${VBOX_BINARY[@]}  ; do
-          chown root:vboxusers ${EROOT}opt/VirtualBox/${i}
+          if [ -e "${EROOT}opt/VirtualBox/${i}" ] ; then
+            chown root:vboxusers ${EROOT}opt/VirtualBox/${i}
+          else
+            echo "Binary ${i} not available."
+          fi
         done
 
         echo "Ensure execution bit on vbox binary..."
         for i in ${VBOX_EXEC_BINARY[@]}  ; do
-          chmod g+rx ${EROOT}opt/VirtualBox/${i}
-          chmod g-w ${EROOT}opt/VirtualBox/${i}
+          if [ -e "${EROOT}opt/VirtualBox/${i}" ] ; then
+            chmod g+rx ${EROOT}opt/VirtualBox/${i}
+            chmod g-w ${EROOT}opt/VirtualBox/${i}
+          fi
         done
 
         echo "Ensure suid to vbox binary..."
