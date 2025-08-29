@@ -1,0 +1,66 @@
+hooks:
+  postinst:
+    check: nss
+    remediate: postinst
+    description: |
+      Resigning core NSS libraries for FIPS validation
+    actions:
+      - |-
+        NSS_CHK_SIGN_LIBS="${NSS_CHK_SIGN_LIBS:-freebl3 nssdbm3 softokn3}"
+        LIBS=${LIBS:-/usr/lib64}
+        shlibsign=${shlibsign:-shlibsign}
+
+        if [ -n "${DEBUG}" ] ; then 
+          set -x
+        fi
+
+        generate_chk() {
+          local shlibsign="$1"
+          local libdir="$2"
+          echo "🏭 Resigning core NSS libraries for FIPS validation"
+          shift 2
+          local i
+          for i in ${NSS_CHK_SIGN_LIBS} ; do
+            local libname=lib${i}.so
+            local chkname=lib${i}.chk
+            "${shlibsign}" \
+              -i "${libdir}"/${libname} \
+              -o "${libdir}"/${chkname}.tmp \
+            && mv -f \
+              "${libdir}"/${chkname}.tmp \
+              "${libdir}"/${chkname} \
+            || die "Failed to sign ${libname}"
+          done
+        }
+        generate_chk "${shlibsign}" "${LIBS}"
+
+  postrm:
+    check: nss
+    remediate: postrm
+    description: |
+      Cleanup NSS libraries
+    actions:
+      - |-
+        NSS_CHK_SIGN_LIBS="${NSS_CHK_SIGN_LIBS:-freebl3 nssdbm3 softokn3}"
+        LIBS=${LIBS:-/usr/lib64}
+
+        if [ -n "${DEBUG}" ] ; then 
+          set -x
+        fi
+
+        cleanup_chk() {
+          local libdir="$1"
+          shift 1
+          local i
+          for i in ${NSS_CHK_SIGN_LIBS} ; do
+            local libfname="${libdir}/lib${i}.so"
+            # If the major version has changed, then we have old chk files.
+            [ ! -f "${libfname}" -a -f "${libfname}.chk" ] \
+              && rm -f "${libfname}.chk"
+          done
+        }
+        cleanup_chk "${LIBS}"
+
+entrypoint:
+  - /bin/bash
+  - -c
