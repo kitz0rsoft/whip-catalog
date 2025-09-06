@@ -24,6 +24,25 @@ hooks:
 
         create_fonts_scale
 
+  remove_fonts_metadata:
+    remediate: fonts_dir
+    check: fonts
+    description: |
+      Remove font metadata
+    actions:
+      - |
+        EROOT=${EROOT:-/}
+
+        if [ -z "${FONT_DIR}" ] ; then
+          echo "Missing FONT_DIR variable."
+          exit 1
+        fi
+
+        if [[ ${FONT_DIR} != Speedo && ${FONT_DIR} != CID ]]; then
+          echo "Removing font metadata"
+          rm -rf "${ED}"/usr/share/fonts/${FONT_DIR}/fonts.{scale,dir,cache-1}
+        fi
+
   create_fonts_dir:
     remediate: fonts_dir
     check: fonts
