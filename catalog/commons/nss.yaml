@@ -31,6 +31,7 @@ hooks:
               "${libdir}"/${chkname} \
             || die "Failed to sign ${libname}"
           done
+          return 0
         }
         generate_chk "${shlibsign}" "${LIBS}"
 
@@ -58,6 +59,7 @@ hooks:
             [ ! -f "${libfname}" -a -f "${libfname}.chk" ] \
               && rm -f "${libfname}.chk"
           done
+          return 0
         }
         cleanup_chk "${LIBS}"
 
