@@ -1,0 +1,26 @@
+hooks:
+  postinst:
+    check: certificates
+    remediate: postinst
+    description: |
+      Rebuild /etc/ssl/ca-certificates.crt
+    actions:
+      - |-
+        EROOT=${EROOT:-}
+
+        if [[ -d "${EROOT}/usr/local/share/ca-certificates" ]] ; then
+          # if the user has local certs, we need to rebuild again
+          # to include their stuff in the db.
+          # However it's too overzealous when the user has custom certs in place.
+          # --fresh is to clean up dangling symlinks
+          "${EROOT}"/usr/sbin/update-ca-certificates --root "${ROOT}"
+        fi
+
+        if [[ -n "$(find -L "${EROOT}"/etc/ssl/certs/ -type l)" ]] ; then
+          echo "Removing the following broken symlinks:"
+          echo "$(find -L "${EROOT}"/etc/ssl/certs/ -type l -printf '%p -> %l\n' -delete)"
+        fi
+
+entrypoint:
+  - /bin/bash
+  - -c
